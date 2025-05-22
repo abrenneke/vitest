@@ -33,6 +33,9 @@ export async function groupFilesByEnv(
     file: { filepath: string; testLocations: number[] | undefined }
     project: TestProject
     environment: ContextTestEnvironment
+
+    /** Does this test file have a @vitest-isolated comment, so that it should clean up after the test is done? */
+    isolated: boolean
   }[]>> {
   const filesWithEnv = await Promise.all(
     files.map(async ({ moduleId: filepath, project, testLines }) => {
@@ -73,6 +76,9 @@ export async function groupFilesByEnv(
           ? ({ [envKey]: envOptions } as EnvironmentOptions)
           : null,
       }
+
+      const isolated = code.match(/@vitest-isolated/) !== null
+
       return {
         file: {
           filepath,
@@ -80,9 +86,10 @@ export async function groupFilesByEnv(
         },
         project,
         environment,
+        isolated,
       }
     }),
   )
 
-  return groupBy(filesWithEnv, ({ environment }) => environment.name)
+  return groupBy(filesWithEnv, ({ environment, isolated }) => `${environment.name}:isolated-${isolated}`)
 }

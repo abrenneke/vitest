@@ -104,6 +104,7 @@ export function createVmThreadsPool(
       files: FileSpecification[],
       environment: ContextTestEnvironment,
       invalidates: string[] = [],
+      isolated = false,
     ) {
       const paths = files.map(f => f.filepath)
       ctx.state.clearFiles(project, paths)
@@ -150,6 +151,11 @@ export function createVmThreadsPool(
         }
       }
       finally {
+        // If isolation is disabled overall but this test file is isolated, recycle the worker
+        if (!config.isolate && isolated) {
+          await pool.recycleWorkers()
+        }
+
         port.close()
         workerPort.close()
       }
@@ -173,13 +179,14 @@ export function createVmThreadsPool(
       const filesByEnv = await groupFilesByEnv(specs)
       const promises = Object.values(filesByEnv).flat()
       const results = await Promise.allSettled(
-        promises.map(({ file, environment, project }) =>
+        promises.map(({ file, environment, project, isolated }) =>
           runFiles(
             project,
             getConfig(project),
             [file],
             environment,
             invalidates,
+            isolated,
           ),
         ),
       )

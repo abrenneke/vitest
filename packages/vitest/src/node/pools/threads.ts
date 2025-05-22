@@ -99,6 +99,7 @@ export function createThreadsPool(
       files: FileSpecification[],
       environment: ContextTestEnvironment,
       invalidates: string[] = [],
+      isolated = false,
     ) {
       const paths = files.map(f => f.filepath)
       ctx.state.clearFiles(project, paths)
@@ -145,6 +146,11 @@ export function createThreadsPool(
         }
       }
       finally {
+        // If isolation is disabled overall but this test file is isolated, recycle the worker
+        if (!config.isolate && isolated) {
+          await pool.recycleWorkers()
+        }
+
         port.close()
         workerPort.close()
       }
@@ -180,13 +186,14 @@ export function createThreadsPool(
         if (isolated) {
           results.push(
             ...(await Promise.allSettled(
-              files.map(({ file, environment, project }) =>
+              files.map(({ file, environment, project, isolated }) =>
                 runFiles(
                   project,
                   getConfig(project),
                   [file],
                   environment,
                   invalidates,
+                  isolated,
                 ),
               ),
             )),
@@ -197,23 +204,25 @@ export function createThreadsPool(
           // Tasks are still running parallel but environments are isolated between tasks.
           const grouped = groupBy(
             files,
-            ({ project, environment }) =>
-              project.name
+            ({ project, environment, isolated }) =>
+              `${project.name
               + environment.name
-              + JSON.stringify(environment.options),
+              + JSON.stringify(environment.options)
+              }:isolated-${isolated}`,
           )
 
           for (const group of Object.values(grouped)) {
             // Push all files to pool's queue
             results.push(
               ...(await Promise.allSettled(
-                group.map(({ file, environment, project }) =>
+                group.map(({ file, environment, project, isolated }) =>
                   runFiles(
                     project,
                     getConfig(project),
                     [file],
                     environment,
                     invalidates,
+                    isolated,
                   ),
                 ),
               )),

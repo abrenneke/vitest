@@ -5,20 +5,20 @@ import { BaseReporter } from './base'
 import { formatTime } from './renderers/utils'
 
 export interface CollectTimeOptions extends BaseOptions {
+  timeMode?: 'total-time' | 'self-time'
+
+  top?: number | 'all'
+}
+
+export class CollectTimeReporter extends BaseReporter implements Required<CollectTimeOptions> {
   timeMode: 'total-time' | 'self-time'
 
   top: number | 'all'
-}
-
-export class CollectTimeReporter extends BaseReporter {
-  timeMode: 'total-time' | 'self-time' = 'total-time'
-
-  top: number | 'all' = 10
 
   constructor(options: CollectTimeOptions) {
     super(options)
-    this.timeMode = options.timeMode
-    this.top = options.top
+    this.timeMode = options.timeMode ?? 'total-time'
+    this.top = options.top ?? 10
   }
 
   reportTestSummary(files: File[], errors: unknown[]): void {
@@ -31,7 +31,7 @@ export class CollectTimeReporter extends BaseReporter {
 
   private reportCollectTimeSummary(files: File[]): void {
     this.log()
-    this.log(c.bold(c.cyan(`📊 Import Duration Breakdown (${this.timeMode === 'self-time' ? 'Self Time' : 'Total Time'})`)))
+    this.log(c.bold(c.cyan(`📊 Import Duration Breakdown (${this.timeMode === 'self-time' ? 'Self Time' : 'Total Time'})${this.top === 'all' ? '' : ` (Top ${this.top})`}`)))
     this.log()
 
     // Collect all import durations from all files

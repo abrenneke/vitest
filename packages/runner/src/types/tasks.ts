@@ -241,7 +241,7 @@ export interface File extends Suite {
   local?: boolean
 
   /** The time spent importing every dependency that Vitest has processed. */
-  importDurations?: Record<string, number>
+  importDurations?: Record<string, { selfTime: number; totalTime: number }>
 }
 
 export interface Test<ExtraContext = object> extends TaskPopulated {

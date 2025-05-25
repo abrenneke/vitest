@@ -1,9 +1,26 @@
 import type { File } from '@vitest/runner'
+import type { BaseOptions } from './base'
 import c from 'tinyrainbow'
 import { BaseReporter } from './base'
 import { formatTime } from './renderers/utils'
 
+export interface CollectTimeOptions extends BaseOptions {
+  timeMode: 'total-time' | 'self-time'
+
+  top: number | 'all'
+}
+
 export class CollectTimeReporter extends BaseReporter {
+  timeMode: 'total-time' | 'self-time' = 'total-time'
+
+  top: number | 'all' = 10
+
+  constructor(options: CollectTimeOptions) {
+    super(options)
+    this.timeMode = options.timeMode
+    this.top = options.top
+  }
+
   reportTestSummary(files: File[], errors: unknown[]): void {
     // Call the original summary first
     super.reportTestSummary(files, errors)
@@ -14,7 +31,7 @@ export class CollectTimeReporter extends BaseReporter {
 
   private reportCollectTimeSummary(files: File[]): void {
     this.log()
-    this.log(c.bold(c.cyan('📊 Import Duration Breakdown')))
+    this.log(c.bold(c.cyan(`📊 Import Duration Breakdown (${this.timeMode === 'self-time' ? 'Self Time' : 'Total Time'})`)))
     this.log()
 
     // Collect all import durations from all files
@@ -22,7 +39,8 @@ export class CollectTimeReporter extends BaseReporter {
 
     for (const file of files) {
       if (file.importDurations) {
-        for (const [importPath, duration] of Object.entries(file.importDurations)) {
+        for (const [importPath, { selfTime, totalTime }] of Object.entries(file.importDurations)) {
+          const duration = this.timeMode === 'self-time' ? selfTime : totalTime
           if (duration > 0) {
             allImports.push({
               path: importPath,
@@ -60,8 +78,8 @@ export class CollectTimeReporter extends BaseReporter {
     const maxImportTime = Math.max(...sortedImports.map(imp => imp.duration))
     const maxPathLength = Math.max(...sortedImports.map(imp => this.relative(imp.path).length))
 
-    for (const importData of sortedImports) {
-      const { path, duration, testFiles } = importData
+    for (const importData of sortedImports.slice(0, this.top === 'all' ? undefined : this.top)) {
+      const { path, duration } = importData
       const relativePath = this.relative(path)
       const paddedPath = relativePath.padEnd(maxPathLength)
 

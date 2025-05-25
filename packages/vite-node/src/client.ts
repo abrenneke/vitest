@@ -176,7 +176,19 @@ export class ModuleCacheMap extends Map<string, ModuleCache> {
   }
 }
 
-export type ModuleExecutionInfo = Map<string, { startOffset: number; duration?: number }>
+export type ModuleExecutionInfo = Map<string, {
+  startOffset: number
+  duration?: number
+  selfTime?: number
+  subImportTime?: number
+}>
+
+// Stack to track nested module execution for self-time calculation
+type ExecutionStack = Array<{
+  filename: string
+  startTime: number
+  subImportTime: number
+}>
 
 export class ViteNodeRunner {
   root: string
@@ -188,6 +200,9 @@ export class ViteNodeRunner {
    * Keys of the map are filepaths, or plain package names
    */
   moduleCache: ModuleCacheMap
+
+  // Stack to track nested executions for self-time calculation
+  private executionStack: ExecutionStack = []
 
   constructor(public options: ViteNodeRunnerOptions) {
     this.root = options.root ?? process.cwd()
@@ -323,7 +338,19 @@ export class ViteNodeRunner {
 
   /** @internal */
   async dependencyRequest(id: string, fsPath: string, callstack: string[]) {
-    return await this.cachedRequest(id, fsPath, callstack)
+    // Track sub-import time for self-time calculation
+    const startTime = performance.now()
+
+    try {
+      return await this.cachedRequest(id, fsPath, callstack)
+    }
+    finally {
+      // Add the time spent in this dependency to the current module's sub-import time
+      if (this.executionStack.length > 0) {
+        const duration = performance.now() - startTime
+        this.executionStack[this.executionStack.length - 1].subImportTime += duration
+      }
+    }
   }
 
   private async _fetchModule(id: string, importer?: string) {
@@ -537,14 +564,44 @@ export class ViteNodeRunner {
       columnOffset: -codeDefinition.length,
     }
 
-    this.options.moduleExecutionInfo?.set(options.filename, { startOffset: codeDefinition.length })
+    // Track execution start and manage execution stack for self-time calculation
+    const currentTime = performance.now()
 
-    const start = performance.now()
+    // Add current module to execution stack
+    this.executionStack.push({
+      filename: options.filename,
+      startTime: currentTime,
+      subImportTime: 0,
+    })
+
+    this.options.moduleExecutionInfo?.set(options.filename, {
+      startOffset: codeDefinition.length,
+      subImportTime: 0,
+    })
 
     const fn = vm.runInThisContext(code, options)
     await fn(...Object.values(context))
 
-    this.options.moduleExecutionInfo?.set(options.filename, { startOffset: codeDefinition.length, duration: performance.now() - start })
+    // Calculate timing and update execution info
+    const endTime = performance.now()
+    const totalDuration = endTime - currentTime
+
+    // Remove current module from stack
+    const currentExecution = this.executionStack.pop()!
+    const subImportTime = currentExecution.subImportTime
+    const selfTime = totalDuration - subImportTime
+
+    // Update parent's sub-import time if there is a parent
+    if (this.executionStack.length > 0) {
+      this.executionStack.at(-1)!.subImportTime += totalDuration
+    }
+
+    this.options.moduleExecutionInfo?.set(options.filename, {
+      startOffset: codeDefinition.length,
+      duration: totalDuration,
+      selfTime,
+      subImportTime,
+    })
   }
 
   prepareContext(context: Record<string, any>): Record<string, any> {

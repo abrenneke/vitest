@@ -1,6 +1,7 @@
 import type { Reporter, TestRunEndReason } from '../types/reporter'
 import type { BaseOptions, BaseReporter } from './base'
 import type { BlobOptions } from './blob'
+import type { CollectTimeOptions } from './collect-time'
 import type { DefaultReporterOptions } from './default'
 import type { HTMLOptions } from './html'
 import type { JsonOptions } from './json'
@@ -65,7 +66,7 @@ export type BuiltinReporters = keyof typeof ReportersMap
 export interface BuiltinReporterOptions {
   'default': DefaultReporterOptions
   'basic': BaseOptions
-  'collect-time': BaseOptions
+  'collect-time': CollectTimeOptions
   'verbose': DefaultReporterOptions
   'dot': BaseOptions
   'json': JsonOptions

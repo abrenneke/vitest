@@ -157,7 +157,7 @@ export interface VitestRunner {
   /**
    * Gets the time spent importing each individual file that Vitest collected.
    */
-  getImportDurations?: () => Record<string, number>
+  getImportDurations?: () => Record<string, { selfTime: number; totalTime: number }>
   /**
    * Publicly available configuration.
    */

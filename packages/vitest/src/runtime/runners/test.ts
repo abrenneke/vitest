@@ -182,8 +182,15 @@ export class VitestTestRunner implements VitestRunner {
     return context
   }
 
-  getImportDurations(): Record<string, number> {
-    return Object.fromEntries((this.workerState.moduleExecutionInfo?.entries() ?? []).map(([filepath, { duration }]) => [filepath, duration ?? 0]))
+  getImportDurations(): Record<string, { selfTime: number; totalTime: number }> {
+    return Object.fromEntries((this.workerState.moduleExecutionInfo?.entries() ?? [])
+      .map(([filepath, { duration, selfTime }]) => [
+        filepath,
+        {
+          selfTime: selfTime ?? 0,
+          totalTime: duration ?? 0,
+        },
+      ]))
   }
 }
 

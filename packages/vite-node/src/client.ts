@@ -338,19 +338,7 @@ export class ViteNodeRunner {
 
   /** @internal */
   async dependencyRequest(id: string, fsPath: string, callstack: string[]) {
-    // Track sub-import time for self-time calculation
-    const startTime = performance.now()
-
-    try {
-      return await this.cachedRequest(id, fsPath, callstack)
-    }
-    finally {
-      // Add the time spent in this dependency to the current module's sub-import time
-      if (this.executionStack.length > 0) {
-        const duration = performance.now() - startTime
-        this.executionStack[this.executionStack.length - 1].subImportTime += duration
-      }
-    }
+    return this.cachedRequest(id, fsPath, callstack)
   }
 
   private async _fetchModule(id: string, importer?: string) {

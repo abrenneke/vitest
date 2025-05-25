@@ -540,6 +540,46 @@ export class ViteNodeRunner {
     return { Object, Reflect, Symbol }
   }
 
+  protected beforeModuleExecution(filename: string, codeDefinitionLength: number): number {
+    const currentTime = performance.now()
+
+    this.executionStack.push({
+      filename,
+      startTime: currentTime,
+      subImportTime: 0,
+    })
+
+    this.options.moduleExecutionInfo?.set(filename, {
+      startOffset: codeDefinitionLength,
+      subImportTime: 0,
+    })
+
+    return currentTime
+  }
+
+  protected afterModuleExecution(filename: string, codeDefinitionLength: number, startTime: number): void {
+    // Calculate timing and update execution info
+    const endTime = performance.now()
+    const totalDuration = endTime - startTime
+
+    // Remove current module from stack
+    const currentExecution = this.executionStack.pop()!
+    const subImportTime = currentExecution.subImportTime
+    const selfTime = totalDuration - subImportTime
+
+    // Update parent's sub-import time if there is a parent
+    if (this.executionStack.length > 0) {
+      this.executionStack.at(-1)!.subImportTime += totalDuration
+    }
+
+    this.options.moduleExecutionInfo?.set(filename, {
+      startOffset: codeDefinitionLength,
+      duration: totalDuration,
+      selfTime,
+      subImportTime,
+    })
+  }
+
   protected async runModule(context: Record<string, any>, transformed: string): Promise<void> {
     // add 'use strict' since ESM enables it by default
     const codeDefinition = `'use strict';async (${Object.keys(context).join(
@@ -552,44 +592,12 @@ export class ViteNodeRunner {
       columnOffset: -codeDefinition.length,
     }
 
-    // Track execution start and manage execution stack for self-time calculation
-    const currentTime = performance.now()
-
-    // Add current module to execution stack
-    this.executionStack.push({
-      filename: options.filename,
-      startTime: currentTime,
-      subImportTime: 0,
-    })
-
-    this.options.moduleExecutionInfo?.set(options.filename, {
-      startOffset: codeDefinition.length,
-      subImportTime: 0,
-    })
+    const startTime = this.beforeModuleExecution(options.filename, codeDefinition.length)
 
     const fn = vm.runInThisContext(code, options)
     await fn(...Object.values(context))
 
-    // Calculate timing and update execution info
-    const endTime = performance.now()
-    const totalDuration = endTime - currentTime
-
-    // Remove current module from stack
-    const currentExecution = this.executionStack.pop()!
-    const subImportTime = currentExecution.subImportTime
-    const selfTime = totalDuration - subImportTime
-
-    // Update parent's sub-import time if there is a parent
-    if (this.executionStack.length > 0) {
-      this.executionStack.at(-1)!.subImportTime += totalDuration
-    }
-
-    this.options.moduleExecutionInfo?.set(options.filename, {
-      startOffset: codeDefinition.length,
-      duration: totalDuration,
-      selfTime,
-      subImportTime,
-    })
+    this.afterModuleExecution(options.filename, codeDefinition.length, startTime)
   }
 
   prepareContext(context: Record<string, any>): Record<string, any> {

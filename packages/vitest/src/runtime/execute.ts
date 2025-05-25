@@ -343,9 +343,7 @@ export class VitestExecutor extends ViteNodeRunner {
       columnOffset: -codeDefinition.length,
     }
 
-    this.options.moduleExecutionInfo?.set(options.filename, { startOffset: codeDefinition.length })
-
-    const start = performance.now()
+    const startTime = this.beforeModuleExecution(options.filename, codeDefinition.length)
 
     const fn = vm.runInContext(code, vmContext, {
       ...options,
@@ -355,7 +353,7 @@ export class VitestExecutor extends ViteNodeRunner {
     } as any)
     await fn(...Object.values(context))
 
-    this.options.moduleExecutionInfo?.set(options.filename, { startOffset: codeDefinition.length, duration: performance.now() - start })
+    this.afterModuleExecution(options.filename, codeDefinition.length, startTime)
   }
 
   public async importExternalModule(path: string): Promise<any> {

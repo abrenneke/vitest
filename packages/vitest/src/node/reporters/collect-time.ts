@@ -83,7 +83,12 @@ export class CollectTimeReporter extends BaseReporter implements Required<Collec
     const maxOrderTime = Math.max(...sortedImports.map(imp => this.order === 'self-time' ? imp.selfTime : imp.totalTime))
     const maxPathLength = Math.max(...sortedImports.map(imp => this.relative(imp.path).length))
 
-    for (const importData of sortedImports.slice(0, this.top === 'all' ? undefined : this.top)) {
+    // Calculate the maximum length of formatted time strings for dynamic padding
+    const itemsToShow = sortedImports.slice(0, this.top === 'all' ? undefined : this.top)
+    const maxSelfTimeLength = Math.max(...itemsToShow.map(imp => formatTime(imp.selfTime).length))
+    const maxTotalTimeLength = Math.max(...itemsToShow.map(imp => formatTime(imp.totalTime).length))
+
+    for (const importData of itemsToShow) {
       const { path, selfTime, totalTime } = importData
       const relativePath = this.relative(path)
       const paddedPath = relativePath.padEnd(maxPathLength)
@@ -102,10 +107,10 @@ export class CollectTimeReporter extends BaseReporter implements Required<Collec
         timeColor = c.red
       }
 
-      const formattedSelfTime = formatTime(selfTime).padStart(8)
-      const formattedTotalTime = formatTime(totalTime).padStart(8)
+      const formattedSelfTime = formatTime(selfTime).padStart(maxSelfTimeLength)
+      const formattedTotalTime = formatTime(totalTime).padStart(maxTotalTimeLength)
 
-      this.log(`  ${c.dim(paddedPath)} ${timeColor(`self: ${formattedSelfTime}     total: ${formattedTotalTime}`)} ${c.dim(bar)}`)
+      this.log(`  ${c.dim(paddedPath)} ${timeColor(`self: ${formattedSelfTime}  total: ${formattedTotalTime}`)} ${c.dim(bar)}`)
     }
 
     this.log()

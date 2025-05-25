@@ -155,6 +155,10 @@ export interface VitestRunner {
    */
   injectValue?: (key: string) => unknown
   /**
+   * Gets the time spent importing each individual file that Vitest collected.
+   */
+  getImportDurations?: () => Record<string, number>
+  /**
    * Publicly available configuration.
    */
   config: VitestRunnerConfig

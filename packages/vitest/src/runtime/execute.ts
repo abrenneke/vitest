@@ -345,6 +345,8 @@ export class VitestExecutor extends ViteNodeRunner {
 
     this.options.moduleExecutionInfo?.set(options.filename, { startOffset: codeDefinition.length })
 
+    const start = performance.now()
+
     const fn = vm.runInContext(code, vmContext, {
       ...options,
       // if we encountered an import, it's not inlined
@@ -352,6 +354,8 @@ export class VitestExecutor extends ViteNodeRunner {
         .importModuleDynamically as any,
     } as any)
     await fn(...Object.values(context))
+
+    this.options.moduleExecutionInfo?.set(options.filename, { startOffset: codeDefinition.length, duration: performance.now() - start })
   }
 
   public async importExternalModule(path: string): Promise<any> {

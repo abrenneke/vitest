@@ -181,6 +181,10 @@ export class VitestTestRunner implements VitestRunner {
     })
     return context
   }
+
+  getImportDurations(): Record<string, number> {
+    return Object.fromEntries((this.workerState.moduleExecutionInfo?.entries() ?? []).map(([filepath, { duration }]) => [filepath, duration ?? 0]))
+  }
 }
 
 function clearModuleMocks(config: SerializedConfig) {

@@ -7,6 +7,7 @@ import type { JsonOptions } from './json'
 import type { JUnitOptions } from './junit'
 import { BasicReporter } from './basic'
 import { BlobReporter } from './blob'
+import { CollectTimeReporter } from './collect-time'
 import { DefaultReporter } from './default'
 import { DotReporter } from './dot'
 import { GithubActionsReporter } from './github-actions'
@@ -19,6 +20,7 @@ import { VerboseReporter } from './verbose'
 
 export {
   BasicReporter,
+  CollectTimeReporter,
   DefaultReporter,
   DotReporter,
   GithubActionsReporter,
@@ -47,6 +49,7 @@ export const ReportersMap = {
   'default': DefaultReporter as typeof DefaultReporter,
   'basic': BasicReporter as typeof BasicReporter,
   'blob': BlobReporter as typeof BlobReporter,
+  'collect-time': CollectTimeReporter as typeof CollectTimeReporter,
   'verbose': VerboseReporter as typeof VerboseReporter,
   'dot': DotReporter as typeof DotReporter,
   'json': JsonReporter as typeof JsonReporter,
@@ -62,6 +65,7 @@ export type BuiltinReporters = keyof typeof ReportersMap
 export interface BuiltinReporterOptions {
   'default': DefaultReporterOptions
   'basic': BaseOptions
+  'collect-time': BaseOptions
   'verbose': DefaultReporterOptions
   'dot': BaseOptions
   'json': JsonOptions

@@ -176,7 +176,7 @@ export class ModuleCacheMap extends Map<string, ModuleCache> {
   }
 }
 
-export type ModuleExecutionInfo = Map<string, { startOffset: number }>
+export type ModuleExecutionInfo = Map<string, { startOffset: number; duration?: number }>
 
 export class ViteNodeRunner {
   root: string
@@ -539,8 +539,12 @@ export class ViteNodeRunner {
 
     this.options.moduleExecutionInfo?.set(options.filename, { startOffset: codeDefinition.length })
 
+    const start = performance.now()
+
     const fn = vm.runInThisContext(code, options)
     await fn(...Object.values(context))
+
+    this.options.moduleExecutionInfo?.set(options.filename, { startOffset: codeDefinition.length, duration: performance.now() - start })
   }
 
   prepareContext(context: Record<string, any>): Record<string, any> {

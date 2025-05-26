@@ -1,43 +1,52 @@
-import type { File } from '@vitest/runner'
-import type { BaseOptions } from './base'
+import type { SerializedError } from '@vitest/utils'
+import type { Vitest } from '../core'
+import type { Reporter, TestRunEndReason } from '../types/reporter'
+import type { TestModule } from './reported-tasks'
+import { relative } from 'pathe'
 import c from 'tinyrainbow'
-import { BaseReporter } from './base'
 import { formatTime } from './renderers/utils'
 
-export interface CollectTimeOptions extends BaseOptions {
+export interface CollectTimeOptions {
   order?: 'total-time' | 'self-time'
-
   top?: number | 'all'
 }
 
-export class CollectTimeReporter extends BaseReporter implements Required<CollectTimeOptions> {
+export class CollectTimeReporter implements Reporter, Required<CollectTimeOptions> {
   order: 'total-time' | 'self-time'
-
   top: number | 'all'
+  private ctx!: Vitest
 
-  constructor(options: CollectTimeOptions) {
-    super(options)
+  constructor(options: CollectTimeOptions = {}) {
     this.order = options.order ?? 'total-time'
     this.top = options.top ?? 10
   }
 
-  reportTestSummary(files: File[], errors: unknown[]): void {
-    // Call the original summary first
-    super.reportTestSummary(files, errors)
-
-    // Then add our custom collect time breakdown
-    this.reportCollectTimeSummary(files)
+  onInit(ctx: Vitest): void {
+    this.ctx = ctx
   }
 
-  private reportCollectTimeSummary(files: File[]): void {
+  onTestRunEnd(testModules: ReadonlyArray<TestModule>, _unhandledErrors: ReadonlyArray<SerializedError>, _reason: TestRunEndReason): void {
+    this.reportCollectTimeSummary(testModules)
+  }
+
+  private log(...messages: any): void {
+    this.ctx.logger.log(...messages)
+  }
+
+  private relative(path: string): string {
+    return relative(this.ctx.config.root, path)
+  }
+
+  private reportCollectTimeSummary(testModules: ReadonlyArray<TestModule>): void {
     this.log()
     this.log(c.bold(c.cyan(`📊 Import Duration Breakdown (ordered by ${this.order === 'self-time' ? 'Self Time' : 'Total Time'})${this.top === 'all' ? '' : ` (Top ${this.top})`}`)))
     this.log()
 
-    // Collect all import durations from all files
+    // Collect all import durations from all test modules
     const allImports: Array<{ path: string; selfTime: number; totalTime: number; testFile: string }> = []
 
-    for (const file of files) {
+    for (const testModule of testModules) {
+      const file = testModule.task
       if (file.importDurations) {
         for (const [importPath, { selfTime, totalTime }] of Object.entries(file.importDurations)) {
           if (selfTime > 0 || totalTime > 0) {
@@ -68,7 +77,7 @@ export class CollectTimeReporter extends BaseReporter implements Required<Collec
 
     // Convert to sorted array
     const sortedImports = Array.from(importMap.entries())
-      .map(([path, data]) => ({ path, selfTime: data.selfTime, totalTime: data.totalTime, testFiles: Array.from(data.testFiles) }))
+      .map(([path, data]) => ({ path, selfTime: data.selfTime, totalTime: data.totalTime, testFiles: Array.from(data.testFiles), importCount: data.testFiles.size }))
       .sort((a, b) => {
         const aDuration = this.order === 'self-time' ? a.selfTime : a.totalTime
         const bDuration = this.order === 'self-time' ? b.selfTime : b.totalTime
@@ -81,17 +90,28 @@ export class CollectTimeReporter extends BaseReporter implements Required<Collec
     }
 
     const maxOrderTime = Math.max(...sortedImports.map(imp => this.order === 'self-time' ? imp.selfTime : imp.totalTime))
-    const maxPathLength = Math.max(...sortedImports.map(imp => this.relative(imp.path).length))
 
     // Calculate the maximum length of formatted time strings for dynamic padding
     const itemsToShow = sortedImports.slice(0, this.top === 'all' ? undefined : this.top)
     const maxSelfTimeLength = Math.max(...itemsToShow.map(imp => formatTime(imp.selfTime).length))
     const maxTotalTimeLength = Math.max(...itemsToShow.map(imp => formatTime(imp.totalTime).length))
+    const maxImportCountLength = Math.max(...itemsToShow.map(imp => imp.importCount.toString().length))
+
+    // Use a more reasonable path width - cap at 60 characters but ensure it fits the longest path in the items to show
+    const maxPathLengthInItems = Math.max(...itemsToShow.map(imp => this.relative(imp.path).length))
+    const dynamicPathLength = Math.min(60, Math.max(30, maxPathLengthInItems))
 
     for (const importData of itemsToShow) {
-      const { path, selfTime, totalTime } = importData
+      const { path, selfTime, totalTime, importCount } = importData
       const relativePath = this.relative(path)
-      const paddedPath = relativePath.padEnd(maxPathLength)
+
+      // Truncate path if it's longer than our dynamic width
+      let displayPath = relativePath
+      if (relativePath.length > dynamicPathLength) {
+        const truncatedLength = dynamicPathLength - 3 // Account for "..." prefix
+        displayPath = `...${relativePath.slice(-truncatedLength)}`
+      }
+      const paddedPath = displayPath.padEnd(dynamicPathLength)
 
       // Create a visual bar for the import time (based on order field)
       const orderDuration = this.order === 'self-time' ? selfTime : totalTime
@@ -109,8 +129,9 @@ export class CollectTimeReporter extends BaseReporter implements Required<Collec
 
       const formattedSelfTime = formatTime(selfTime).padStart(maxSelfTimeLength)
       const formattedTotalTime = formatTime(totalTime).padStart(maxTotalTimeLength)
+      const formattedImportCount = importCount.toString().padStart(maxImportCountLength)
 
-      this.log(`  ${c.dim(paddedPath)} ${timeColor(`self: ${formattedSelfTime}  total: ${formattedTotalTime}`)} ${c.dim(bar)}`)
+      this.log(`  ${c.dim(paddedPath)} ${timeColor(`self: ${formattedSelfTime}  total: ${formattedTotalTime}  imports: ${formattedImportCount}`)} ${c.dim(bar)}`)
     }
 
     this.log()
